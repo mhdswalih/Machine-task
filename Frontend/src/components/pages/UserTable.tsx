@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Plus, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import AddUserModal from '../modals/user/AddUser';
 import EditUserModal from '../modals/user/EditUser';
 import { addUser, deleteUser, editUser, getAllUsers } from '../../api/adminApi';
@@ -13,30 +13,42 @@ interface User {
   phone: string;
 }
 
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalUsers: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+  limit: number;
+}
+
+interface UsersResponse {
+  users: User[];
+  pagination: PaginationInfo;
+  message: string;
+}
+
 const UserTable: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-
-  // Filtered users based on search term
-  const filteredUsers = users.filter((user) => {
-    const name = user.name || '';
-    const email = user.email || '';
-    const phone = user.phone || '';
-
-    return (
-      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      phone.includes(searchTerm)
-    );
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalUsers: 0,
+    hasNext: false,
+    hasPrev: false,
+    limit: 10
   });
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // ✅ Fetch all users
-  const fetchUsers = async () => {
+  // Fetch users with search and pagination
+  const fetchUsers = async (page: number = 1, search: string = '') => {
+    setIsLoading(true);
     try {
-      const response = await getAllUsers();
+      const response = await getAllUsers(page, search);
       if (response && response.users) {
         const cleanedUsers = response.users.map((user: any) => ({
           _id: user._id,
@@ -45,21 +57,56 @@ const UserTable: React.FC = () => {
           phone: user.phone || 'No Phone',
         }));
         setUsers(cleanedUsers);
-        toast.success('Users loaded successfully');
+        setPagination(response.pagination);
+        toast.success(response.message || 'Users loaded successfully');
       } else {
         console.error('Unexpected response structure:', response);
         setUsers([]);
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalUsers: 0,
+          hasNext: false,
+          hasPrev: false,
+          limit: 10
+        });
         toast.error('Failed to load users');
       }
     } catch (error) {
       console.error('Error fetching users:', error);
       setUsers([]);
+      setPagination({
+        currentPage: 1,
+        totalPages: 1,
+        totalUsers: 0,
+        hasNext: false,
+        hasPrev: false,
+        limit: 10
+      });
       toast.error('Failed to load users');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle search with debouncing
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchUsers(1, searchTerm);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchUsers(newPage, searchTerm);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(1, '');
   }, []);
 
   // ✅ Add new user
@@ -67,8 +114,8 @@ const UserTable: React.FC = () => {
     try {
       const response = await addUser(userData as IUser);
       if (response && response.user) {
-        const newUser: User = response.user;
-        setUsers((prev) => [...prev, newUser]);
+        // Refresh the current page to show the new user
+        fetchUsers(pagination.currentPage, searchTerm);
         setIsAddModalOpen(false);
         toast.success('User added successfully');
       } else {
@@ -86,11 +133,8 @@ const UserTable: React.FC = () => {
     try {
       if (editingUser) {
         await editUser(userData._id, userData as IUser);
-        setUsers((prev) =>
-          prev.map((user) =>
-            user._id === editingUser._id ? { ...user, ...userData } : user
-          )
-        );
+        // Refresh the current page to reflect changes
+        fetchUsers(pagination.currentPage, searchTerm);
         setIsEditModalOpen(false);
         setEditingUser(null);
         toast.success('User updated successfully');
@@ -102,14 +146,33 @@ const UserTable: React.FC = () => {
   };
 
   // ✅ Delete user
-  const handleDelete = async(id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
+      // ✅ Optimistic UI update
+      const previousUsers = [...users];
+      const previousPagination = { ...pagination };
+      
+      setUsers(prev => prev.filter(user => user._id !== id));
+      setPagination(prev => ({
+        ...prev,
+        totalUsers: prev.totalUsers - 1
+      }));
+
       try {
         await deleteUser(id);
-        setUsers(users.filter((user) => user._id !== id));
         toast.success('User deleted successfully');
+        
+        // If this was the last item on the page and not the first page, go to previous page
+        if (users.length === 1 && pagination.currentPage > 1) {
+          fetchUsers(pagination.currentPage - 1, searchTerm);
+        } else {
+          fetchUsers(pagination.currentPage, searchTerm);
+        }
       } catch (error) {
         console.error('Error deleting user:', error);
+        // ❌ Revert UI if deletion fails
+        setUsers(previousUsers);
+        setPagination(previousPagination);
         toast.error('Failed to delete user');
       }
     }
@@ -118,6 +181,23 @@ const UserTable: React.FC = () => {
   const handleEdit = (user: User) => {
     setEditingUser(user);
     setIsEditModalOpen(true);
+  };
+
+  // Generate page numbers for pagination
+  const generatePageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, pagination.currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
   };
 
   return (
@@ -135,7 +215,7 @@ const UserTable: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder="Search users by name, email, or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -164,8 +244,14 @@ const UserTable: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                    Loading users...
+                  </td>
+                </tr>
+              ) : users.length > 0 ? (
+                users.map((user) => (
                   <tr key={user._id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -200,7 +286,7 @@ const UserTable: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                    No users found
+                    {searchTerm ? 'No users found matching your search' : 'No users found'}
                   </td>
                 </tr>
               )}
@@ -208,10 +294,57 @@ const UserTable: React.FC = () => {
           </table>
         </div>
 
-        {/* Footer */}
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-          <span>Showing {filteredUsers.length} of {users.length} users</span>
-        </div>
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm text-slate-600">
+              Showing {users.length} of {pagination.totalUsers} users
+              {searchTerm && ` for "${searchTerm}"`}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={!pagination.hasPrev}
+                className={`p-2 rounded-lg border ${
+                  pagination.hasPrev
+                    ? 'text-slate-600 border-slate-300 hover:bg-slate-50'
+                    : 'text-slate-400 border-slate-200 cursor-not-allowed'
+                }`}
+              >
+                <ChevronLeft size={20} />
+              </button>
+
+              <div className="flex items-center gap-1">
+                {generatePageNumbers().map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                      page === pagination.currentPage
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={!pagination.hasNext}
+                className={`p-2 rounded-lg border ${
+                  pagination.hasNext
+                    ? 'text-slate-600 border-slate-300 hover:bg-slate-50'
+                    : 'text-slate-400 border-slate-200 cursor-not-allowed'
+                }`}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}

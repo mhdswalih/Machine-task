@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Plus, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import AddProductModal from '../modals/products/AddProducts'; 
 import EditProductModal from '../modals/products/EditProducts';
 import { addProducts, deleteProduct, editProduct, getAllCategories, getAllProducts } from '../../api/adminApi';
@@ -19,6 +19,21 @@ interface Category {
   name: string;
 }
 
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalProducts: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+  limit: number;
+}
+
+interface ProductsResponse {
+  products: Product[];
+  pagination: PaginationInfo;
+  message: string;
+}
+
 const Products: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false); 
@@ -27,36 +42,20 @@ const Products: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]); 
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalProducts: 0,
+    hasNext: false,
+    hasPrev: false,
+    limit: 10
+  });
 
-  const filteredProducts = products.filter(product =>
-    product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.categoryName && product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    product.categoryId.toString().includes(searchTerm) ||
-    product.price.toString().includes(searchTerm)
-  );
-
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        await deleteProduct(id);
-        setProducts(products.filter(product => product._id !== id));
-        toast.success('Product deleted successfully');
-      } catch (error) {
-        console.error('Error deleting product:', error);
-        toast.error('Failed to delete product');
-      }
-    }
-  };
-
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setIsEditModalOpen(true);
-  };
-
-  const fetchProducts = async () => {
+  // Fetch products with search and pagination
+  const fetchProducts = async (page: number = 1, search: string = '') => {
     try {
       setIsLoading(true);
-      const response = await getAllProducts();
+      const response = await getAllProducts(page, search);
       if (response && response.products) {
         const validatedProducts = response.products.map((product: any) => ({
           _id: product._id,
@@ -67,33 +66,96 @@ const Products: React.FC = () => {
           status: product.status === 'active' || product.status === 'inactive' ? product.status : 'active'
         }));
         setProducts(validatedProducts);
-        toast.success('Products loaded successfully');
+        setPagination(response.pagination);
+        toast.success(response.message || 'Products loaded successfully');
       } else {
         console.error('Unexpected response structure:', response);
         setProducts([]);
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalProducts: 0,
+          hasNext: false,
+          hasPrev: false,
+          limit: 10
+        });
         toast.error('Failed to load products');
       }
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
+      setPagination({
+        currentPage: 1,
+        totalPages: 1,
+        totalProducts: 0,
+        hasNext: false,
+        hasPrev: false,
+        limit: 10
+      });
       toast.error('Failed to load products');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Handle search with debouncing
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchProducts(1, searchTerm);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchProducts(newPage, searchTerm);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      // Optimistic UI update
+      const previousProducts = [...products];
+      const previousPagination = { ...pagination };
+      
+      setProducts(prev => prev.filter(product => product._id !== id));
+      setPagination(prev => ({
+        ...prev,
+        totalProducts: prev.totalProducts - 1
+      }));
+
+      try {
+        await deleteProduct(id);
+        toast.success('Product deleted successfully');
+        
+        // If this was the last item on the page and not the first page, go to previous page
+        if (products.length === 1 && pagination.currentPage > 1) {
+          fetchProducts(pagination.currentPage - 1, searchTerm);
+        } else {
+          fetchProducts(pagination.currentPage, searchTerm);
+        }
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        // Revert UI if deletion fails
+        setProducts(previousProducts);
+        setPagination(previousPagination);
+        toast.error('Failed to delete product');
+      }
+    }
+  };
+
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setIsEditModalOpen(true);
+  };
+
   const handleEditProduct = async (productData: Product) => { 
     try {
       await editProduct(productData._id, productData);
-      setProducts(prev =>
-        prev.map(product =>
-          product._id === productData._id ? { 
-            ...product, 
-            ...productData,
-            categoryName: categories.find(cat => cat._id === productData.categoryId)?.name || 'Uncategorized'
-          } : product
-        )
-      );
+      // Refresh current page to reflect changes
+      fetchProducts(pagination.currentPage, searchTerm);
       setIsEditModalOpen(false);
       setEditingProduct(null);
       toast.success('Product updated successfully');
@@ -113,11 +175,8 @@ const Products: React.FC = () => {
           status: updatedStatus
         };
         await editProduct(id, updatedProduct);
-        setProducts(prev =>
-          prev.map(p =>
-            p._id === id ? updatedProduct : p
-          )
-        );
+        // Refresh current page to reflect status change
+        fetchProducts(pagination.currentPage, searchTerm);
         toast.success(`Product ${updatedStatus} successfully`);
       }
     } catch (error) {
@@ -130,19 +189,8 @@ const Products: React.FC = () => {
     try {
       const response = await addProducts(productData);
       if (response && response.product) {
-        const categoryName = categories.find(cat => cat._id === response.product.categoryId)?.name || 'Uncategorized';
-        
-        const newProduct: Product = {
-          _id: response.product._id,
-          productName: response.product.productName,
-          categoryId: response.product.categoryId,
-          categoryName: categoryName,
-          price: response.product.price,
-          status: response.product.status === 'active' || response.product.status === 'inactive' 
-            ? response.product.status 
-            : 'active'
-        };
-        setProducts(prev => [...prev, newProduct]);
+        // Refresh the current page to show the new product
+        fetchProducts(pagination.currentPage, searchTerm);
         setIsAddModalOpen(false);
         toast.success('Product added successfully');
       } else {
@@ -172,9 +220,26 @@ const Products: React.FC = () => {
     }
   };
 
+  // Generate page numbers for pagination
+  const generatePageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, pagination.currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
   useEffect(() => {
     fetchCategories();
-    fetchProducts();
+    fetchProducts(1, '');
   }, []);
 
   return (
@@ -191,7 +256,7 @@ const Products: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
-            placeholder="Search products..."
+            placeholder="Search products by name, category, or price..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -239,8 +304,8 @@ const Products: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredProducts.length > 0 ? (
-                  filteredProducts.map((product) => (
+                {products.length > 0 ? (
+                  products.map((product) => (
                     <tr key={product._id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -291,7 +356,7 @@ const Products: React.FC = () => {
                 ) : (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                      {products.length === 0 ? 'No products found. Add your first product!' : 'No products match your search.'}
+                      {searchTerm ? 'No products found matching your search' : 'No products found. Add your first product!'}
                     </td>
                   </tr>
                 )}
@@ -299,18 +364,69 @@ const Products: React.FC = () => {
             </table>
           </div>
 
-          {/* Footer */}
-          <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-            <span>Showing {filteredProducts.length} of {products.length} products</span>
-            {searchTerm && (
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between">
+              <div className="text-sm text-slate-600">
+                Showing {products.length} of {pagination.totalProducts} products
+                {searchTerm && ` for "${searchTerm}"`}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={!pagination.hasPrev}
+                  className={`p-2 rounded-lg border ${
+                    pagination.hasPrev
+                      ? 'text-slate-600 border-slate-300 hover:bg-slate-50'
+                      : 'text-slate-400 border-slate-200 cursor-not-allowed'
+                  }`}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {generatePageNumbers().map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                        page === pagination.currentPage
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={!pagination.hasNext}
+                  className={`p-2 rounded-lg border ${
+                    pagination.hasNext
+                      ? 'text-slate-600 border-slate-300 hover:bg-slate-50'
+                      : 'text-slate-400 border-slate-200 cursor-not-allowed'
+                  }`}
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Clear Search */}
+          {searchTerm && (
+            <div className="mt-4 text-center">
               <button
                 onClick={() => setSearchTerm('')}
-                className="text-blue-600 hover:text-blue-700"
+                className="text-blue-600 hover:text-blue-700 text-sm"
               >
                 Clear search
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </>
       )}
 

@@ -12,15 +12,20 @@ export const addUser = async (userData : IUser ) => {
     }
 }
 
-export const getAllUsers = async() => {
-    try {
-        const response = await axiosInstance.get(`/admin/users`);
-        return response.data;
-    } catch (error) {
-        
-    }
-}
-
+export const getAllUsers = async (page: number = 1, search: string = '') => {
+  try {
+    const response = await axiosInstance.get('/admin/users', {
+      params: {
+        page,
+        limit: 10, 
+        search
+      }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const editUser = async(userId:string,userData: IUser) => {
     try {
         const response = await axiosInstance.put(`/admin/users/${userId}`,userData)
@@ -47,15 +52,20 @@ export const addCategory = async(categoryData : {name :string,description: strin
         
     }
 }
-
-export const getAllCategories = async() => {
-    try {
-        const response = await axiosInstance.get('/admin/categories')
-        return response.data
-    } catch (error) {
-        
-    }
-}
+export const getAllCategories = async (page: number = 1, search: string = '') => {
+  try {
+    const response = await axiosInstance.get('/admin/categories', {
+      params: {
+        page,
+        limit: 10, 
+        search
+      }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 
 export const editCategory = async(categoryId:string,categoryData : {name : string,description:string}) => {
     try {
@@ -86,13 +96,19 @@ export const addProducts = async(productData : {productName :string,categoryId:s
     }
 }
 
-export const getAllProducts = async() => {
-    try {
-        const response = await axiosInstance.get(`/admin/products`);
-        return response.data
-    } catch (error) {
-        
-    }
+export const getAllProducts = async (page: number = 1, search: string = '') => {
+  try {
+    const response = await axiosInstance.get('/admin/products', {
+      params: {
+        page,
+        limit: 10, 
+        search
+      }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
 }
 
 export const editProduct  = async(productId:string,productData : {productName :string,categoryId:string,price:number,status:string}) => {

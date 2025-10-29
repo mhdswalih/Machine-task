@@ -30,14 +30,51 @@ export const addUser = async (req: Request, res: Response, next: NextFunction) =
   }
 };
 
-export const getAllUsers = async (req:Request,res:Response,next:NextFunction) => {
-    try {
-        const user = await userModel.find();
-        res.status(200).json({users : user})
-    } catch (error) {
-        
+export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = (req.query.search as string) || '';
+    const skip = (page - 1) * limit;
+
+  
+    let searchQuery: any = {};
+    if (search) {
+      searchQuery = {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } }
+        ]
+      };
     }
-}
+
+  
+    const users = await userModel.find(searchQuery) 
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    
+    const totalUsers = await userModel.countDocuments(searchQuery);
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    res.status(200).json({
+      users,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        limit
+      },
+      message: 'Users fetched successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 
 export const editUser = async (req: Request, res: Response, next: NextFunction) => {
@@ -84,15 +121,46 @@ export const addCategory = async(req:Request,res:Response,next:NextFunction) => 
         next(error)
     }
 }
-
-export const getAllCategories = async(req:Request,res:Response,next:NextFunction) => {
+export const getAllCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
-     const categories = await category.find();
-     res.status(200).json({categories})
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = (req.query.search as string) || '';
+    const skip = (page - 1) * limit;
+
+    let searchQuery: any = {};
+    if (search) {
+      searchQuery = {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+    const categories = await category.find(searchQuery)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+    const totalCategories = await category.countDocuments(searchQuery);
+    const totalPages = Math.ceil(totalCategories / limit);
+
+    res.status(200).json({
+      categories,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCategories,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        limit
+      },
+      message: 'Categories fetched successfully'
+    });
   } catch (error) {
-    
+    next(error);
   }
 }
+
 export const editCategory = async(req:Request,res:Response,next:NextFunction) => {
   try {
     const {categoryId} = req.params;
@@ -133,15 +201,52 @@ export const addProduct = async(req:Request,res:Response,next:NextFunction) => {
   }
 }
 
-export const getAllProducts = async(req:Request,res:Response,next:NextFunction) => {
+export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-     const products = await productModel.find().populate('categoryId');
-     res.status(200).json({products})
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = (req.query.search as string) || '';
+    const skip = (page - 1) * limit;
+
+  
+    let searchQuery: any = {};
+    if (search) {
+      searchQuery = {
+        $or: [
+          { productName: { $regex: search, $options: 'i' } },
+          { price: { $regex: search, $options: 'i' } },
+          { 'categoryId.name': { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+   
+    const products = await productModel.find(searchQuery)
+      .populate('categoryId', 'name')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    
+    const totalProducts = await productModel.countDocuments(searchQuery);
+    const totalPages = Math.ceil(totalProducts / limit);
+
+    res.status(200).json({
+      products,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalProducts,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        limit
+      },
+      message: 'Products fetched successfully'
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
 }
-
 export const ediProduct = async(req:Request,res:Response,next:NextFunction) => {
   try {
     const {productId} = req.params;
