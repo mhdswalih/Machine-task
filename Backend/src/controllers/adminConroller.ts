@@ -10,6 +10,12 @@ export const addUser = async (req: Request, res: Response, next: NextFunction) =
   try {
     const { name, email, phone } = req.body;
 
+    const existingUser = await userModel.findOne({email})
+
+    if(existingUser){
+      return res.status(409).json({message:"User with this email alredy exists"})
+    }
+
     const newUser = new userModel({
       name: name,
       email,
@@ -61,7 +67,13 @@ export const deleteUser = async (req:Request,res:Response,next:NextFunction) => 
 
 export const addCategory = async(req:Request,res:Response,next:NextFunction) => {
     try {
-       const { name, description } = req.body.categoryData;      
+       const { name, description } = req.body.categoryData;   
+        
+       const existingCategory = await category.findOne({name})
+       if(existingCategory){
+        return res.status(409).json({message:'Category with this name alredy exists'})
+       }
+       
         const newCategory = new category({
             name,
             description,
@@ -104,6 +116,10 @@ export const deleteCategory = async(req:Request,res:Response,next:NextFunction) 
 export const addProduct = async(req:Request,res:Response,next:NextFunction) => {
   try {
     const {productName,categoryId,price,status} = req.body;    
+    const existProduct = await productModel.findOne({productName})
+    if(existProduct){
+      return res.status(409).json({message:"Product with this name alredy exists"})
+    }
     const newProducts = new productModel({
       productName,
       categoryId,
@@ -129,6 +145,7 @@ export const getAllProducts = async(req:Request,res:Response,next:NextFunction) 
 export const ediProduct = async(req:Request,res:Response,next:NextFunction) => {
   try {
     const {productId} = req.params;
+    
     const updatedProducts = await productModel.findByIdAndUpdate(productId,req.body.productData,{new: true})
     res.status(200).json({message : 'Product updated successfully',product:updatedProducts})
   } catch (error) {
@@ -203,35 +220,48 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
       order: newOrder,
     });
   } catch (error) {
-    console.error("Error creating order:", error);
     next(error);
   }
 };
 
 export const getDashboard = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Count total users
-    const totalUsers = await userModel.countDocuments();
-
-    // Count total products
-    const totalProducts = await productModel.countDocuments();
-
-    // Count total orders
-    const totalOrders = await OrderModel.countDocuments();
-
-    // Calculate total revenue (sum of all order.totalAmount)
-    const result = await OrderModel.aggregate([
+    const [dashboardData] = await OrderModel.aggregate([
       {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: "$totalAmount" },
+        $facet: {
+          totalUsers: [
+            {
+              $count: "count",
+            },
+          ],
+          totalProducts: [
+            {
+              $count: "count",
+            },
+          ],
+          totalOrders: [
+            {
+              $count: "count",
+            },
+          ],
+          totalRevenue: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: "$totalAmount" },
+              },
+            },
+          ],
         },
       },
     ]);
 
-    const totalRevenue = result.length > 0 ? result[0].totalRevenue : 0;
 
-    // Send the data
+    const totalUsers = dashboardData.totalUsers[0]?.count || 0;
+    const totalProducts = dashboardData.totalProducts[0]?.count || 0;
+    const totalOrders = dashboardData.totalOrders[0]?.count || 0;
+    const totalRevenue = dashboardData.totalRevenue[0]?.total || 0;
+
     res.status(200).json({
       totalUsers,
       totalProducts,
@@ -239,7 +269,6 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
       totalRevenue,
     });
   } catch (error) {
-    console.error("Error fetching dashboard data:", error);
     next(error);
   }
 };

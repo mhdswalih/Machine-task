@@ -8,7 +8,7 @@ export interface Products {
 }
 
 const productSchema = new mongoose.Schema<Products>({
-   productName: { type: String, required: true },
+   productName: { type: String, required: true,unique :true },
    categoryId: {
       type: String,
       ref: 'Category',

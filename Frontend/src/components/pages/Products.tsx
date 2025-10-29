@@ -3,12 +3,13 @@ import { Search, Plus, Edit, Trash2 } from 'lucide-react';
 import AddProductModal from '../modals/products/AddProducts'; 
 import EditProductModal from '../modals/products/EditProducts';
 import { addProducts, deleteProduct, editProduct, getAllCategories, getAllProducts } from '../../api/adminApi';
+import toast from 'react-hot-toast';
 
 interface Product {
   _id: string;
   productName: string;
   categoryId: string;
-  categoryName?: string; // Fixed: should be categoryName, not name
+  categoryName?: string;
   price: number;
   status: 'active' | 'inactive';
 }
@@ -39,8 +40,10 @@ const Products: React.FC = () => {
       try {
         await deleteProduct(id);
         setProducts(products.filter(product => product._id !== id));
+        toast.success('Product deleted successfully');
       } catch (error) {
         console.error('Error deleting product:', error);
+        toast.error('Failed to delete product');
       }
     }
   };
@@ -55,23 +58,25 @@ const Products: React.FC = () => {
       setIsLoading(true);
       const response = await getAllProducts();
       if (response && response.products) {
-        // Map the populated category data to include categoryName
         const validatedProducts = response.products.map((product: any) => ({
           _id: product._id,
           productName: product.productName,
           categoryId: product.categoryId?._id || product.categoryId,
-          categoryName: product.categoryId?.name || 'Uncategorized', // Fixed: assign to categoryName
+          categoryName: product.categoryId?.name || 'Uncategorized',
           price: product.price,
           status: product.status === 'active' || product.status === 'inactive' ? product.status : 'active'
         }));
         setProducts(validatedProducts);
+        toast.success('Products loaded successfully');
       } else {
         console.error('Unexpected response structure:', response);
         setProducts([]);
+        toast.error('Failed to load products');
       }
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
+      toast.error('Failed to load products');
     } finally {
       setIsLoading(false);
     }
@@ -91,8 +96,10 @@ const Products: React.FC = () => {
       );
       setIsEditModalOpen(false);
       setEditingProduct(null);
+      toast.success('Product updated successfully');
     } catch (error) {
       console.error('Error updating product:', error);
+      toast.error('Failed to update product');
     }
   };
 
@@ -111,9 +118,11 @@ const Products: React.FC = () => {
             p._id === id ? updatedProduct : p
           )
         );
+        toast.success(`Product ${updatedStatus} successfully`);
       }
     } catch (error) {
       console.error('Error toggling product status:', error);
+      toast.error('Failed to update product status');
     }
   };
 
@@ -127,7 +136,7 @@ const Products: React.FC = () => {
           _id: response.product._id,
           productName: response.product.productName,
           categoryId: response.product.categoryId,
-          categoryName: categoryName, // Fixed: assign to categoryName
+          categoryName: categoryName,
           price: response.product.price,
           status: response.product.status === 'active' || response.product.status === 'inactive' 
             ? response.product.status 
@@ -135,11 +144,14 @@ const Products: React.FC = () => {
         };
         setProducts(prev => [...prev, newProduct]);
         setIsAddModalOpen(false);
+        toast.success('Product added successfully');
       } else {
         console.error('Unexpected response structure:', response);
+        toast.error('Failed to add product');
       }
     } catch (error) {
       console.error('Error adding product:', error);
+      toast.error('Failed to add product');
     }
   };
 
@@ -151,10 +163,12 @@ const Products: React.FC = () => {
       } else {
         console.error('Unexpected response structure:', response);
         setCategories([]);
+        toast.error('Failed to load categories');
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
       setCategories([]);
+      toast.error('Failed to load categories');
     }
   };
 
@@ -237,7 +251,7 @@ const Products: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {product.categoryName} {/* Fixed: use categoryName instead of name */}
+                        {product.categoryName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         ${product.price.toFixed(2)}

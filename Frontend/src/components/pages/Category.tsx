@@ -3,9 +3,10 @@ import { Search, Plus, Edit, Trash2 } from 'lucide-react';
 import AddCategoryModal from '../modals/category/AddCategory';
 import EditCategoryModal from '../modals/category/EditCategory';
 import { addCategory, deleteCategory, editCategory, getAllCategories } from '../../api/adminApi';
+import toast from 'react-hot-toast';
 
 interface Category {
-  _id: string; // Changed to string to match typical MongoDB IDs
+  _id: string;
   name: string;
   description: string;
 }
@@ -23,19 +24,20 @@ const Category: React.FC = () => {
     category.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ✅ Fetch all categories
   const fetchCategories = async () => {
     try {
       const response = await getAllCategories();
       if (response && response.categories) {
         setCategories(response.categories);
+        toast.success(response.message || 'Categories loaded successfully');
       } else {
-        console.error('Unexpected response structure:', response);
         setCategories([]);
+        toast.error('No categories found');
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
       setCategories([]);
+      toast.error('Failed to load categories');
     }
   };
 
@@ -46,15 +48,17 @@ const Category: React.FC = () => {
       if (response && response.category) {
         setCategories(prev => [...prev, response.category]);
         setIsAddModalOpen(false);
+        toast.success(response.message || 'Category added successfully');
       } else {
-        console.error('Unexpected add category response:', response);
+        toast.error('Failed to add category');
       }
     } catch (error) {
       console.error('Error adding category:', error);
+      toast.error('Failed to add category');
     }
   };
 
-  // ✅ Edit category - FIXED: Use _id instead of id
+  // ✅ Edit category
   const handleEditCategory = async (categoryData: Category) => {
     try {
       const response = await editCategory(categoryData._id, categoryData);
@@ -66,15 +70,18 @@ const Category: React.FC = () => {
         );
         setIsEditModalOpen(false);
         setEditingCategory(null);
+        toast.success(response.message || 'Category updated successfully');
       } else {
         console.error('Unexpected edit category response:', response);
+        toast.error('Failed to update category');
       }
     } catch (error) {
       console.error('Error editing category:', error);
+      toast.error('Failed to update category');
     }
   };
 
-  // ✅ Delete category - FIXED: Use _id instead of id
+  // ✅ Delete category
   const handleDelete = async (category: Category) => {
     if (window.confirm(`Are you sure you want to delete "${category.name}"?`)) {
       // ✅ Optimistic UI update
@@ -83,16 +90,15 @@ const Category: React.FC = () => {
 
       try {
         await deleteCategory(category._id);
-        console.log("Category deleted successfully");
+        toast.success('Category deleted successfully');
       } catch (error) {
         console.error("Error deleting category:", error);
         // ❌ Revert UI if deletion fails
         setCategories(previousCategories);
-        alert("Failed to delete category. Please try again.");
+        toast.error('Failed to delete category. Please try again.');
       }
     }
   };
-
 
   // ✅ Handle edit button click
   const handleEditClick = (category: Category) => {
@@ -154,7 +160,7 @@ const Category: React.FC = () => {
           <tbody className="divide-y divide-slate-200">
             {filteredCategories.length > 0 ? (
               filteredCategories.map((category) => (
-                <tr key={category._id} className="hover:bg-slate-50 transition-colors"> {/* FIXED: Use _id for key */}
+                <tr key={category._id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-semibold">

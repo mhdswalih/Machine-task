@@ -49,7 +49,7 @@ const Sidebar: React.FC = () => {
       <div className={`bg-slate-900 text-white transition-all duration-300 ${isOpen ? 'w-64' : 'w-20'} relative`}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
-          {isOpen && <h1 className="text-xl font-bold">Admin Panel</h1>}
+          {isOpen && <h1 className="text-xl font-bold">Food Delivery Admin Panel</h1>}
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="p-2 rounded-lg hover:bg-slate-800 transition-colors"

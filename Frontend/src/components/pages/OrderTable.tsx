@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, Package, ShoppingCart, Users } from 'lucide-react';
 import { createOrder, getAllProducts, getAllUsers } from '../../api/adminApi';
 import OrderModal from '../modals/order/OrderModal';
+import toast from 'react-hot-toast';
 
 interface Product {
   _id: string;
@@ -40,8 +41,8 @@ const OrderTable = () => {
         getAllUsers()
       ]);
 
-      console.log('Products Response:', productsResponse); // Debug log
-      console.log('Users Response:', usersResponse); // Debug log
+      console.log('Products Response:', productsResponse);
+      console.log('Users Response:', usersResponse);
 
       if (productsResponse && productsResponse.products) {
         const validatedProducts = productsResponse.products.map((product: any) => ({
@@ -52,11 +53,13 @@ const OrderTable = () => {
           price: product.price,
           status: product.status === 'active' || product.status === 'inactive' ? product.status : 'active'
         }));
-        console.log('Processed Products:', validatedProducts); // Debug log
+        console.log('Processed Products:', validatedProducts);
         setProducts(validatedProducts);
+        toast.success('Products and users loaded successfully');
       } else {
         setError('Unexpected response structure from server');
         setProducts([]);
+        toast.error('Failed to load products');
       }
 
       if (usersResponse && usersResponse.users) {
@@ -78,6 +81,7 @@ const OrderTable = () => {
       console.error('Error fetching products:', error);
       setError('Failed to load products');
       setProducts([]);
+      toast.error('Failed to load products and users');
     } finally {
       setIsLoading(false);
     }
@@ -95,7 +99,7 @@ const OrderTable = () => {
   // Handle order button click
   const handleOrder = (product: Product) => {
     if (!selectedUserId && users.length > 0) {
-      alert('Please select a user first');
+      toast.error('Please select a user first');
       return;
     }
     setSelectedProduct(product);
@@ -111,12 +115,12 @@ const OrderTable = () => {
   }) => {
     try {
       await createOrder(orderData);
-      alert(`Order placed successfully!\nQuantity: ${orderData.quantity}\nTotal: $${orderData.totalAmount.toFixed(2)}`);
+      toast.success(`Order placed successfully!\nQuantity: ${orderData.quantity}\nTotal: $${orderData.totalAmount.toFixed(2)}`);
       setIsOrderModalOpen(false);
       setSelectedProduct(null);
     } catch (error) {
       console.error('Error creating order:', error);
-      alert('Failed to place order. Please try again.');
+      toast.error('Failed to place order. Please try again.');
     }
   };
 
@@ -345,7 +349,7 @@ const OrderTable = () => {
         )}
       </div>
 
-      {/* Order Modal - Fixed with proper props */}
+      {/* Order Modal */}
       <OrderModal
         isOpen={isOrderModalOpen}
         onClose={() => {

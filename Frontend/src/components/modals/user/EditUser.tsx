@@ -88,7 +88,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, onEdit, 
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
+        className="absolute inset-0  bg-opacity-50 transition-opacity"
         onClick={handleClose}
       />
 
@@ -140,6 +140,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, onEdit, 
               type="email"
               id="email"
               name="email"
+              disabled
               value={formData.email}
               onChange={handleChange}
               className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${

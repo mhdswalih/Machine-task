@@ -4,6 +4,7 @@ import AddUserModal from '../modals/user/AddUser';
 import EditUserModal from '../modals/user/EditUser';
 import { addUser, deleteUser, editUser, getAllUsers } from '../../api/adminApi';
 import type { IUser } from '../../types/AddUser';
+import toast from 'react-hot-toast';
 
 interface User {
   _id: string;
@@ -44,13 +45,16 @@ const UserTable: React.FC = () => {
           phone: user.phone || 'No Phone',
         }));
         setUsers(cleanedUsers);
+        toast.success('Users loaded successfully');
       } else {
         console.error('Unexpected response structure:', response);
         setUsers([]);
+        toast.error('Failed to load users');
       }
     } catch (error) {
       console.error('Error fetching users:', error);
       setUsers([]);
+      toast.error('Failed to load users');
     }
   };
 
@@ -65,12 +69,15 @@ const UserTable: React.FC = () => {
       if (response && response.user) {
         const newUser: User = response.user;
         setUsers((prev) => [...prev, newUser]);
+        setIsAddModalOpen(false);
+        toast.success('User added successfully');
       } else {
         console.error('Unexpected add user response:', response);
+        toast.error('Failed to add user');
       }
-      setIsAddModalOpen(false);
     } catch (error) {
       console.error('Error adding user:', error);
+      toast.error('Failed to add user');
     }
   };
 
@@ -86,18 +93,25 @@ const UserTable: React.FC = () => {
         );
         setIsEditModalOpen(false);
         setEditingUser(null);
+        toast.success('User updated successfully');
       }
     } catch (error) {
       console.error('Error editing user:', error);
+      toast.error('Failed to update user');
     }
   };
 
-  // ✅ Delete user (frontend-only for now)
+  // ✅ Delete user
   const handleDelete = async(id: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-        await deleteUser(id)
-      setUsers(users.filter((user) => user._id !== id));
-      // You can later add API deleteUser(id) here if needed.
+      try {
+        await deleteUser(id);
+        setUsers(users.filter((user) => user._id !== id));
+        toast.success('User deleted successfully');
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        toast.error('Failed to delete user');
+      }
     }
   };
 
