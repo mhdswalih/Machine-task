@@ -22,7 +22,7 @@ Push repository to GitHub with `/Backend` and `/Frontend` at the repo root.
 
 # Backend
 PORT=4500
-MONGO_URI=mongodb://127.0.0.1:27017/teabox
+MONGO_URI=mongodb://127.0.0.1:27017/FoodDelivaryApp
 
 # Frontend (example)
 VITE_API_URL=http://localhost:4500/api
