@@ -9,7 +9,7 @@ interface EditUserModalProps {
 }
 
 interface UserFormData {
-  _id: string; // Changed from _id?: string
+  _id: string; 
   name: string;
   email: string;
   phone: string;
@@ -17,7 +17,7 @@ interface UserFormData {
 
 const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, onEdit, user }) => {
   const [formData, setFormData] = useState<UserFormData>({
-    _id: user?._id || '', // Provide default value
+    _id: user?._id || '', 
     name: '',
     email: '',
     phone: ''

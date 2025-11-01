@@ -329,43 +329,25 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+
+
 export const getDashboard = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const [dashboardData] = await OrderModel.aggregate([
-      {
-        $facet: {
-          totalUsers: [
-            {
-              $count: "count",
-            },
-          ],
-          totalProducts: [
-            {
-              $count: "count",
-            },
-          ],
-          totalOrders: [
-            {
-              $count: "count",
-            },
-          ],
-          totalRevenue: [
-            {
-              $group: {
-                _id: null,
-                total: { $sum: "$totalAmount" },
-              },
-            },
-          ],
+    const [totalUsers, totalProducts, totalOrders, revenueData] = await Promise.all([
+      userModel.countDocuments(),
+      productModel.countDocuments(),
+      OrderModel.countDocuments(),
+      OrderModel.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: "$totalAmount" },
+          },
         },
-      },
+      ]),
     ]);
 
-
-    const totalUsers = dashboardData.totalUsers[0]?.count || 0;
-    const totalProducts = dashboardData.totalProducts[0]?.count || 0;
-    const totalOrders = dashboardData.totalOrders[0]?.count || 0;
-    const totalRevenue = dashboardData.totalRevenue[0]?.total || 0;
+    const totalRevenue = revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
 
     res.status(200).json({
       totalUsers,
@@ -374,6 +356,7 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
       totalRevenue,
     });
   } catch (error) {
+    console.error("Error fetching dashboard data:", error);
     next(error);
   }
 };

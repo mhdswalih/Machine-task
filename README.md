@@ -7,10 +7,9 @@ Short project description.
 - `/Frontend` — React (Vite) frontend
 
 ## Quick start (backend)
-1. Copy `.env.example` → `.env` and fill values.
-2. cd Backend
-3. npm install
-4. npm run dev
+1. cd Backend
+2. npm install
+3. npm run dev
 
 ## Quick start (frontend)
 1. cd Frontend
